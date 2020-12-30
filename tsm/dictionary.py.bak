@@ -1,0 +1,122 @@
+import argparse
+import pandas as pd
+from collections import defaultdict
+import re
+import numpy as np
+from local.POJ_TL import poj_tl
+import logging
+from local.util import flatten, raw_pron_to_all_prons, raw_graph_to_all_graphs
+from itertools import product
+
+flatten = lambda l: [item for sublist in l for item in sublist]
+
+class Dictionary:
+
+
+
+
+    @staticmethod
+    def merge_dictionaries(dictionaries):
+        merged_dictionary = defaultdict(set)
+        for dictionary in dictionaries:
+            for graph, prons in dictionary.items():
+                merged_dictionary[graph].update(prons)
+        return merged_dictionary
+
+    @staticmethod
+    def write_to_lexicon(dictionary, syllable_phoneme_mapping, lexicon_path,
+                         with_tone=False):
+        def syl2phns(syl_tone):
+            # parse syllable to syllable and tone
+            syl_tone = syl_tone.lower()
+            try:
+                match = re.match("([a-z]+)(\d)", syl_tone)
+                syl = match.group(1)
+                tone = match.group(2)
+            except AttributeError:
+                if re.match("[a-z]+", syl_tone):
+                    syl = syl_tone
+                    if syl_tone[-1] in "hptk":
+                        tone = 4
+                    else:
+                        tone = 1
+                else:
+                    raise ValueError
+
+
+            syl.encode("ascii")
+            if syllable_phoneme_mapping:
+                phns = syllable_phoneme_mapping[syl.lower()][0]
+                if with_tone:
+                    final = phns[-1] + str(tone)
+                    phns = phns[:-1] + [final]
+            else:
+                phns = [f"{syl}{tone}"]
+            #except KeyError:
+            #    try:
+            #        syl.encode('ascii')
+            #        raise KeyError
+            #    except UnicodeEncodeError:
+            #        tlt_syl = syl
+            #        phns = syl2phns(poj_tl(tlt_syl).tlt_tls())
+
+            return phns
+            
+        fp = open(lexicon_path, 'w')
+        for graph, prons in dictionary.items():
+            for pron in prons:
+                syls = filter(lambda syl: syl, re.split('[\W\-]+', pron.strip()))
+                try:
+                    phns = flatten(map(syl2phns, syls))
+                    graph = re.sub("\s+", "", graph)
+                    fp.write(f"{graph} {' '.join(phns)}\n")
+                except KeyError as e:
+                    print(f"skipping pronunciation {pron} of {graph} since phone not in syl-phn-mapping: {e}")
+                except UnicodeEncodeError:
+                    print(graph, pron)
+                    continue
+                except IndexError:
+                    continue
+                except ValueError:
+                    continue
+        fp.close()
+
+    @staticmethod
+    def parse_lexicon(lexicon_path):
+        with open(lexicon_path) as fp:
+            entries = fp.read().splitlines()
+        graph_phns_mapping = defaultdict(list)
+        for entry in entries:
+            graph_phns = re.split("\W", entry)
+            graph, phns = graph_phns[0], graph_phns[1:]
+            graph_phns_mapping[graph].append(phns)
+        return graph_phns_mapping
+
+    @staticmethod
+    def extract_parallel_sentences(dict_path, field, pattern):
+        df = pd.read_csv(dict_path)
+        def maybe_search(pattern, entry):
+            try:
+                result = re.findall(pattern, entry)
+                return result
+            except TypeError:
+                logging.warning(f"{entry} contains invalid strings; skipping")
+                return []
+        return [maybe_search(pattern, entry) for entry in df[field]]
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dictionary-grapheme-phoneme-mapping')
+    parser.add_argument('--output-lexicon-path')
+    parser.add_argument('--syllable-phoneme-mapping-file')
+    parser.add_argument('--with-tone', action='store_true')
+    args = parser.parse_args()
+
+    df = pd.read_csv(args.dictionary_grapheme_phoneme_mapping)
+    dictionaries = [Dictionary.from_file(*triple)
+                    for triple in list(zip(df["file"], df["grapheme"], df["phoneme"]))]
+    merged_dict = Dictionary.merge_dictionaries(dictionaries)
+    syl_phn_mapping = Dictionary.parse_lexicon(args.syllable_phoneme_mapping_file)
+    Dictionary.write_to_lexicon(merged_dict, syl_phn_mapping, args.output_lexicon_path,
+                                args.with_tone)
