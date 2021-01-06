@@ -21,25 +21,37 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger.info('message')
 
-def cut_line_factory(lexicon):
+def get_oovs(lines, lexicon):
     hanzis = re.compile(f"[{zhon.hanzi.characters}]+")
-    hanzi_others = re.compile(f"[{zhon.hanzi.characters}]+|[^{zhon.hanzi.characters}]+")
-    def cut(line):
-        dest_words = []
+    oovs = set()
+    for line in lines:
         line = line.lower()
         line = unicodedata.normalize("NFKC", line)
-        src_clauses = re.split("[\p{P}\s+\-~─⋯]+", line)
-        segments = flatten([filter(lambda w: w, [match.group() for match in hanzi_others.finditer(clause)]) for clause in src_clauses])
-        for segment in segments:
-            #src_clause = "".join(Sentence.from_line(src_clause, remove_punct=True, form=args.form))
-            if not hanzis.match(segment) and segment not in lexicon: # don't split non-hanzi oov
-                maybe_words = [[segment]]
-            else:
-                maybe_words = dict_seg(segment, dict_lexicon)
-            dest_words += maybe_words[0]
-        dest_sent = " ".join(dest_words)
-        return dest_sent
-    return cut
+        segments = Sentence.parse_mixed_text(line)
+        _oovs = filter(lambda segment: not (hanzis.match(segment) or segment in lexicon), segments)
+        oovs.update(_oovs)
+    return oovs
+
+#def cut_line_factory(lexicon):
+#    hanzis = re.compile(f"[{zhon.hanzi.characters}]+")
+#    hanzi_others = re.compile(f"[{zhon.hanzi.characters}]+|[^{zhon.hanzi.characters}]+")
+#    non_hanzi_oovs = []
+#    def cut(line):
+#        dest_words = []
+#        line = line.lower()
+#        line = unicodedata.normalize("NFKC", line)
+#        segments = Sentence.parse_mixed_text(line)
+#        non_hanzi_oovs = 
+#        for segment in segments:
+#            #src_clause = "".join(Sentence.from_line(src_clause, remove_punct=True, form=args.form))
+#            if not hanzis.match(segment) and segment not in lexicon: # don't split non-hanzi oov
+#                maybe_words = [segment]
+#            else:
+#                maybe_words = dict_seg(segment, dict_lexicon)
+#            dest_words += maybe_words[0]
+#        dest_sent = " ".join(dest_words)
+#        return dest_sent
+#    return cut
 
 CANNOTSEG = "unsegmentable"
 
@@ -70,11 +82,15 @@ if __name__ == '__main__':
     parser.add_argument('--batch-size', type=int, default=64)
     parser.add_argument('--recommend-dictionary', action='store_true')
     parser.add_argument('--form', choices=['char', 'word', 'sent'])
+    parser.add_argument('--non-hanzi-in-lexicon', action='store_true')
     args = parser.parse_args()
 
     dict_lexicon = Lexicon.from_kaldi(args.dict_lexicon_path, args.with_prob)
-    dict_lexicon = {word: prons for word, prons in dict_lexicon.items() if re.search(f"[{zhon.hanzi.characters}]", word)}
+    if not args.non_hanzi_in_lexicon:
+        dict_lexicon = {word: prons for word, prons in dict_lexicon.items() if re.search(f"[{zhon.hanzi.characters}]", word)}
     lines = read_file_to_lines(args.src_path)
+    oovs = get_oovs(lines, dict_lexicon)
+    dict_lexicon.update({oov: None for oov in oovs})
     dest_sents = []
     if args.ckip_path:
         from tsm.ckip_wrapper import CKIPWordSegWrapper
