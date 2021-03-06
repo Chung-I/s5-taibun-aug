@@ -10,6 +10,7 @@ set -e -o pipefail
 
 train_dir=condenser/wav
 data_dir=data/tat
+remove_hyphen=false
 
 . ./path.sh
 . parse_options.sh
@@ -32,13 +33,20 @@ mkdir -p $data_dir
 
 # make utt2spk, wav.scp and text
 echo "prepare text"
-python3 text_prepare_tailo.py condenser/json
+python3 text_prepare_tailo.py condenser/json --field 台羅數字調
 mv text $data_dir/text
 
 mkdir -p tmp
 cat $data_dir/text | awk '{print $1}' > tmp/utt
 cat $data_dir/text | awk '$1=""; {print $0}' | sed 's/^\s\+//' > tmp/only_text
 python3 dict_seg.py language/lexiconp.txt tmp/only_text tmp/only_seg_text --with-prob --form sent --ckip-path /home/nlpmaster/ssd-1t/weights/data --lower --non-hanzi-in-lexicon
+
+if $remove_hyphen;
+then
+  sed -i 's/\-/ /g' tmp/only_seg_text
+  sed -i 's/\s\+/ /g' tmp/only_seg_text
+fi
+
 paste -d " " tmp/utt tmp/only_seg_text | grep -Ev 'unsegmentable' > $data_dir/text
 rm -rf tmp
 

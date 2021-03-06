@@ -55,9 +55,9 @@ class Sentence:
     @staticmethod
     def parse_mixed_text(mixed_text, remove_punct=False):
         if remove_punct:
-            return [match.group() for match in re.finditer(f"[{zhon.hanzi.characters}]|[^{zhon.hanzi.characters}\W]+", mixed_text)]
+            return [match.group() for match in re.finditer(f"[{zhon.hanzi.characters}]|[^{zhon.hanzi.characters}\W](\-|[^{zhon.hanzi.characters}\W])+|[^{zhon.hanzi.characters}\W]+", mixed_text)]
         else:
-            return [match.group() for match in re.finditer(f"[{zhon.hanzi.characters}]|[^{zhon.hanzi.characters}\W]+|\p{{P}}", mixed_text)]
+            return [match.group() for match in re.finditer(f"[{zhon.hanzi.characters}]|[^{zhon.hanzi.characters}\W](\-|[^{zhon.hanzi.characters}\W])+|\p{{P}}", mixed_text)]
 
 
 #class TaibunSentence(Sentence):

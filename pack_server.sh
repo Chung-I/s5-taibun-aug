@@ -1,8 +1,9 @@
-lang=data/lang_mandarin_test
+lang_suffix=$2
+lang=data/lang${lang_suffix}_test
 model=exp/chain/tdnn_1d_aug_sp
-graph=exp/chain/tdnn_1d_aug_sp/graph_mandarin
-output_dir=exp/chain/nnet_online_mandarin 
-#bash steps/online/nnet3/prepare_online_decoding.sh --add-pitch true $lang exp/nnet3/extractor $model $output_dir
+graph=exp/chain/tdnn_1d_aug_sp/graph${lang_suffix}
+output_dir=exp/chain/nnet_online${lang_suffix}
+bash steps/online/nnet3/prepare_online_decoding.sh --add-pitch true $lang exp/nnet3/extractor $model $output_dir
 tmp_dir=server_tmp
 rm -rf $tmp_dir
 mkdir -p $tmp_dir

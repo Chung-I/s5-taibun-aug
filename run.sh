@@ -70,7 +70,8 @@ mfccdir=mfcc
 # mfcc
 if [ $stage -le -1 ]; then
   echo "$0: making mfccs"
-  for x in tat pts test eval test_pts pts_merged test_pts_merged; do
+  #for x in tat pts test eval test_pts pts_merged test_pts_merged; do
+  for x in test_pts_merged; do
     steps/make_mfcc_pitch.sh --cmd "$train_cmd" --nj $num_jobs data/$x exp/make_mfcc/$x $mfccdir || exit 1;
     steps/compute_cmvn_stats.sh data/$x exp/make_mfcc/$x $mfccdir || exit 1;
     utils/fix_data_dir.sh data/$x || exit 1;
@@ -94,8 +95,8 @@ if [ $stage -le 0 ]; then
     data/tat data/lang exp/mono exp/mono_ali || exit 1;
 
   # Monophone decoding
-  (
-  utils/mkgraph.sh data/lang_test exp/mono exp/mono/graph || exit 1;
+  #(
+  #utils/mkgraph.sh data/lang_test exp/mono exp/mono/graph || exit 1;
   for testset in $testsets ; do
     numspk=$(wc -l <data/${testset}/spk2utt)
     nj=$([[ $numspk -le $num_jobs ]] && echo "$numspk" || echo "$num_jobs")
@@ -104,7 +105,7 @@ if [ $stage -le 0 ]; then
     steps/decode.sh --cmd "$decode_cmd" --config conf/decode.config --nj $nj \
       exp/mono/graph data/$testset exp/mono/decode_${testset}
   done
-  )&
+  #)&
 fi
 
 # tri1
@@ -143,7 +144,7 @@ if [ $stage -le 2 ]; then
     data/train data/lang exp/tri2 exp/tri2_ali || exit 1;
 
   # decode tri2
-  (
+  #(
   utils/mkgraph.sh data/lang_test exp/tri2 exp/tri2/graph
   for testset in $testsets ; do
     numspk=$(wc -l <data/${testset}/spk2utt)
@@ -151,7 +152,7 @@ if [ $stage -le 2 ]; then
     steps/decode.sh --cmd "$decode_cmd" --config conf/decode.config --nj $nj \
       exp/tri2/graph data/$testset exp/tri2/decode_${testset}
   done
-  )&
+  #)&
 fi
 
 # tri3a
@@ -166,7 +167,7 @@ if [ $stage -le 3 ]; then
   #  --nj $num_jobs --decode-nj $num_jobs || exit 1;
 
   # decode tri3a
-  (
+  #(
   utils/mkgraph.sh data/lang_test exp/tri3a exp/tri3a/graph || exit 1;
   for testset in $testsets ; do
     numspk=$(wc -l <data/${testset}/spk2utt)
@@ -174,7 +175,7 @@ if [ $stage -le 3 ]; then
     steps/decode.sh --cmd "$decode_cmd" --nj $nj --config conf/decode.config \
       exp/tri3a/graph data/${testset} exp/tri3a/decode_${testset}
   done
-  )&
+  #)&
 fi
 
 # tri4
@@ -195,7 +196,7 @@ if [ $stage -le 4 ]; then
   #utils/fix_data_dir.sh data/pts_reseg || exit 1;
   #steps/cleanup/clean_and_segment_data.sh --nj 10 data/pts_reseg data/lang \
   #  exp/pts_merged_tri4a exp/pts_merged_tri4a_cleanup data/pts_reseg_cleaned || exit 1;
-  utils/copy_data_dir.sh data/train data/old_train
+  cp -r data/train data/old_train
   utils/data/combine_data.sh data/train data/pts_reseg data/tat || exit 1 ;
 
   # align tri4a
@@ -203,7 +204,7 @@ if [ $stage -le 4 ]; then
     data/train data/lang exp/tri4a exp/tri4a_ali
 
   # decode tri4a
-  (
+  #(
   utils/mkgraph.sh data/lang_test exp/tri4a exp/tri4a/graph
   for testset in $testsets ; do
     numspk=$(wc -l <data/${testset}/spk2utt)
@@ -211,7 +212,7 @@ if [ $stage -le 4 ]; then
     steps/decode_fmllr.sh --cmd "$decode_cmd" --nj $nj --config conf/decode.config \
       exp/tri4a/graph data/${testset} exp/tri4a/decode_${testset}
   done
-  )&
+  #)&
 fi
 
 # tri5
@@ -226,7 +227,7 @@ if [ $stage -le 5 ]; then
     data/train data/lang exp/tri5a exp/tri5a_ali || exit 1;
 
   # decode tri5
-  (
+  #(
   utils/mkgraph.sh data/lang_test exp/tri5a exp/tri5a/graph || exit 1;
   for testset in $testsets ; do
     numspk=$(wc -l <data/${testset}/spk2utt)
@@ -234,7 +235,7 @@ if [ $stage -le 5 ]; then
     steps/decode_fmllr.sh --cmd "$decode_cmd" --nj $nj --config conf/decode.config \
       exp/tri5a/graph data/${testset} exp/tri5a/decode_${testset} || exit 1;
   done
-  )&
+  #)&
 fi
 
 # nnet3 tdnn models
@@ -248,17 +249,17 @@ fi
 if [ $stage -le 7 ]; then
   # The iVector-extraction and feature-dumping parts coulb be skipped by setting "--train_stage 7"
   echo "$0: train chain model"
-  local/chain/run_tdnn_aug.sh --test-sets "$testsets" --num-cpu-jobs $num_jobs
+  local/chain/run_tdnn_aug.sh --test-sets "$testsets" --stage 13 --num-cpu-jobs $num_jobs
 fi
 
 # getting results (see RESULTS file)
 if [ $stage -le 8 ]; then
   echo "$0: extract the results"
   for test_set in pilot pilot_mandarin ; do
-  echo "WER: $test_set"
-  for x in exp/*/decode_${test_set}; do [ -d $x ] && grep WER $x/wer_* | utils/best_wer.sh; done 2>/dev/null
-  for x in exp/*/*/decode_${test_set}; do [ -d $x ] && grep WER $x/wer_* | utils/best_wer.sh; done 2>/dev/null
-  echo
+  #echo "WER: $test_set"
+  #for x in exp/*/decode_${test_set}; do [ -d $x ] && grep WER $x/wer_* | utils/best_wer.sh; done 2>/dev/null
+  #for x in exp/*/*/decode_${test_set}; do [ -d $x ] && grep WER $x/wer_* | utils/best_wer.sh; done 2>/dev/null
+  #echo
 
   echo "CER: $test_set"
   for x in exp/*/decode_${test_set}; do [ -d $x ] && grep WER $x/cer_* | utils/best_wer.sh; done 2>/dev/null
@@ -267,6 +268,29 @@ if [ $stage -le 8 ]; then
   done
 fi
 
+if [ $stage -le 9 ]; then
+  dict_tmp=data/local/dict_mandarin
+  lang_tmp=data/local/lang_mandarin
+  lang_dir=data/lang_mandarin
+  src_mdl_dir=exp/chain/tdnn_1d_aug_sp
+  #cp -r data/local/dict  $dict_tmp
+  #cp language/mandarin_lexiconp.txt $dict_tmp/lexiconp.txt
+  #echo "<SIL> 1.0 SIL"	>> $dict_tmp/lexiconp.txt
+  #perl -ape 's/(\S+\s+)\S+\s+(.+)/$1$2/;' < $dict_tmp/lexiconp.txt > $dict_tmp/lexicon.txt || exit 1;
+
+  #utils/prepare_lang.sh --position-dependent-phones false \
+  #  --phone-symbol-table $src_mdl_dir/phones.txt $dict_tmp "<SIL>" $lang_tmp $lang_dir || exit 1;
+
+  bash local/run_learn_lex_bayesian.sh --ref-dict $dict_tmp --dir exp/chain/tdnn_1d_aug_sp_lex_work \
+    --data data/great_times_hires --src-mdl-dir exp/chain/tdnn_1d_aug_sp --ref-lang $lang_dir \
+    --oov-symbol "<SIL>" --g2p-lexicon-path language/mandarin_oov_g2p_lexiconp.txt --stage 1 --lexlearn-stage 5 || exit 1
+fi
+
+#if [ $stage -le 10 ]; then
+#  #utils/combine_data.sh data/train_aug_sp_gt_hires "data/train_aug_sp_hires data/great_times_hires"
+#  #utils/combine_data.sh data/train_aug_sp_gt "data/train_aug_sp data/great_times"
+#  steps/combine_ali_dirs.sh --nj 12 data/${train_set}_aug_sp_gt_hires exp/tri5a_aug_sp_gt_lats exp/tri5a_aug_sp_lats exp/chain/tdnn_1d_aug_sp_ali_great_times_hires || exit 1;
+#fi
 # finish
 echo "$0: all done"
 

@@ -8,13 +8,13 @@
 
 set -e -o pipefail
 
-train_num=1
-data_dir=data/great_times
+train_dir=FSR-2020_final-test_chinese
+data_dir=data/pts_ftv_test
+add_parent_prefix=true
+txtdir=text
 
 . ./path.sh
 . parse_options.sh
-
-train_dir=ftv/$train_num.segment
 
 for x in $train_dir; do
   if [ ! -d "$x" ] ; then
@@ -33,20 +33,14 @@ rm -rf $data_dir
 mkdir -p $data_dir
 
 
-# make utt2spk, wav.scp and text
-echo "prepare text"
-tmp_dir=tmp
-mkdir -p $tmp_dir
-cp $train_dir/list_${train_num}_wavscp $data_dir/wav.scp
-utt2txt_file=$tmp_dir/utt_dur_text
-cat $train_dir/*/text* > $utt2txt_file
-python3 local/get_after_n.py $utt2txt_file $tmp_dir/only_text --way after --index 2
-python3 local/get_after_n.py $utt2txt_file $tmp_dir/only_utt --way before --index 1
-python3 dict_seg.py language/mandarin_lexiconp.txt tmp/only_text tmp/only_seg_text --with-prob --form sent --ckip-path /home/nlpmaster/ssd-1t/weights/data
-paste -d " " $tmp_dir/only_utt $tmp_dir/only_seg_text > $data_dir/text
-rm -r $tmp_dir
+if [ $add_parent_prefix == "true" ]; then
+  find -L $train_dir -name *.wav -exec sh -c 'x={}; y=$(basename -s .wav $x); z=$(echo $x | rev | cut -d '/' -f2 | rev); printf "%s-%s %s\n" $z $y $x' \; | sed 's/\xe3\x80\x80\|\xc2\xa0//g' | dos2unix > $data_dir/wav.scp
+else
+  find -L $train_dir -name *.wav -exec sh -c 'x={}; y=$(basename -s .wav $x); printf "%s %s\n" $y $x' \; | sed 's/\xe3\x80\x80\|\xc2\xa0//g' | dos2unix > $data_dir/wav.scp
+fi
 
-cat $data_dir/text | awk '{print $1,$1}' > $data_dir/utt2spk
+cat $data_dir/wav.scp | awk '{print $1,$1}' > $data_dir/utt2spk
+cat $data_dir/wav.scp | awk '{print $1,"DUMMY"}' > $data_dir/text
 
 #cat $eval_dir/refs.txt | awk -F '/' 'BEGIN { OFS = "-" } {print $1, $3}' | sed 's/\.wav//g' > tmp/eval_utt
 #paste tmp/eval_utt $eval_dir/trn.txt > data/eval/text

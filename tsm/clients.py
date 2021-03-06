@@ -128,6 +128,7 @@ class UnkTranslator:
 
     def translate(self, word, n_best=1):
         translator_name = None
+        hyps = []
         for name, consultant in self.consultants:
             try:
                 translator_name = name
@@ -135,5 +136,4 @@ class UnkTranslator:
                 break
             except KeyError:
                 continue
-        logger.info(f"Unknown word {word} translated by {translator_name} as {list(map(str, hyps))}")
         return hyps

@@ -36,23 +36,27 @@ class LexiconEntry:
 class MosesHelper:
     @staticmethod
     def parse_line_to_entry(line, strip_punct=True, row=1, delimiter="\s+"):
-        columns = re.split(delimiter, line)
-        raw_src, raw_tgt, prob = columns[0].strip(), columns[1].strip(), columns[2]
-        if raw_tgt == "NULL":
+        try:
+            columns = re.split(delimiter, line)
+            raw_src, raw_tgt, prob = columns[0].strip(), columns[1].strip(), columns[2]
+            if raw_tgt == "NULL":
+                return None
+            if len(raw_src.split()) > 1:
+                return None
+            tgt = raw_tgt
+            #tgt_words = re.split("\s+", raw_tgt)
+            #tgt = " ".join([word for word in tgt_words])
+            if strip_punct:
+                src = "".join([match.group(0) for match in 
+                               re.finditer(f"[{zhon.hanzi.characters}]", raw_src)])
+                tgt = " ".join([match.group(0) for match in 
+                                re.finditer(f"[A-Za-z]+\d", tgt)])
+            if not (src and tgt):
+                return None
+            prob = reduce(operator.mul, map(float, re.split("\s+", prob.strip())))
+        except IndexError:
             return None
-        if len(raw_src.split()) > 1:
-            return None
-        tgt_words = re.split("\s+", raw_tgt)
-        tgt = " ".join([re.split("\uff5c", word)[row] for word in tgt_words])
-        if strip_punct:
-            src = "".join([match.group(0) for match in 
-                           re.finditer(f"[{zhon.hanzi.characters}]", raw_src)])
-            tgt = " ".join([match.group(0) for match in 
-                            re.finditer(f"[A-Za-z]+\d", tgt)])
-        if not (src and tgt):
-            return None
-        prob = reduce(operator.mul, map(float, re.split("\s+", prob.strip())))
-        return LexiconEntry(src, np.log(prob), tgt)
+        return LexiconEntry(src, prob, tgt)
 
 class Lexicon(dict):
     def __init__(self, entries: List[NamedTuple], sum_dup_pron_probs: bool = True):
@@ -97,8 +101,8 @@ class Lexicon(dict):
             self[grapheme] = Lexicon.merge_duplicated_prons(self[grapheme], sum_dup_pron_probs)
 
     @classmethod
-    def from_moses(cls, moses_path):
-        lines = read_file_to_lines(moses_path, True)
+    def from_moses(cls, moses_path, unicode_escape):
+        lines = read_file_to_lines(moses_path, unicode_escape)
         entries = filter(lambda x: x, [MosesHelper.parse_line_to_entry(line, delimiter='\|\|\|')
                                        for line in lines])
         return cls(list(entries))
@@ -114,14 +118,14 @@ class Lexicon(dict):
                 return LexiconEntry(cols[0], 0.0, " ".join(cols[1:]))
         return cls(map(parse_line, lines), sum_dup_pron_probs)
 
-    #def prune_lexicon(self, top_k: int, min_val: float):
-    #    def prune_entries(entries):
-    #        entries = sorted(entries, key=lambda e: -e.prob)[:top_k]
-    #        max_prob = entries[0].prob
-    #        entries = [LexiconEntry(e.grapheme, round(e.prob * (1 / max_prob), 5), e.phonemes) for e in entries]
-    #        return list(filter(lambda e: e.prob > min_val, entries))
-    #    for grapheme in self:
-    #        self[grapheme] = prune_entries(self[grapheme])
+    def prune_lexicon(self, top_k: int, min_val: float):
+        def prune_entries(entries):
+            entries = sorted(entries, key=lambda e: -e.prob)[:top_k]
+            max_prob = entries[0].prob
+            entries = [LexiconEntry(e.grapheme, round(e.prob * (1 / max_prob), 5), e.phonemes) for e in entries]
+            return list(filter(lambda e: e.prob > min_val, entries))
+        for grapheme in self:
+            self[grapheme] = prune_entries(self[grapheme])
 
     def write(self, dest_path):
         out_lines = map(str, flatten(self.values()))

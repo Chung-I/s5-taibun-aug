@@ -3,16 +3,18 @@
 . ./path.sh
  
 # Set the paths of our input files into variables
-lm_dir=data/local/lm
+lm_dir=data/local/lm_tailo
 lm_suffix=3gram-mincount/lm_unpruned 
-lm_raw=taibun_lms/combined.arpa
+lm_raw=final_test_tailo_lms/combined.arpa
 lm_src=$lm_dir/$lm_suffix
-lexicon_raw=language/full_taibun_lexiconp.txt
+vocab=language/tailo_num_vocab.txt 
+lm_data=data/local/train_tailo
+lexicon_raw=language/tailo_num_lexicon.txt
  
-lang=data/lang_test
-dict=data/lang
-dict_tmp=data/local/dict
-lang_tmp=data/local/lang
+lang=data/lang_tailo_test
+dict=data/lang_tailo
+dict_tmp=data/local/dict_tailo
+lang_tmp=data/local/lang_tailo
 dir=exp/chain/tdnn_1d_aug_sp
 mfccdir=mfcc_hires
 stage=0
@@ -24,7 +26,6 @@ skip_scoring=false
 test_set="pts_tw_extra"
 dec_dir_suffix=""
 use_ivector=true
-gen_syl=false
 graph_dir_suffix=""
 ivector_dir=
 
@@ -35,7 +36,7 @@ if [ -z $ivector_dir ]; then
 fi
 
 phones_src=$dir/phones.txt
-graph=$dir/graph${graph_dir_suffix}
+graph=$dir/graph_tailo${graph_dir_suffix}
 lang=${lang}${graph_dir_suffix}
 
 if $use_ivector ; then
@@ -43,7 +44,13 @@ if $use_ivector ; then
 fi
 
 if [ $stage -le -3 ]; then
-  local/prepare_pts_data.sh --train-dir PTS_TW-extra --data-dir data/$test_set || exit 1;
+  #local/prepare_data_tailo.sh --train-dir condenser/wav --data-dir data/tat_tailo --remove-hyphen true || exit 1;
+  rm -r $lm_data
+  mkdir -p $lm_data
+  mkdir -p $(dirname $lm_raw)
+  cat data/tat_tailo/text | cut -d " " -f2- > $lm_data/text
+  cat $lexicon_raw | awk '{print $1}' > $vocab
+  ./train_lm.sh --stage 0 --discount-type wbdiscount --order 5 $lm_data/text $vocab $lm_raw
 fi
 
 
@@ -51,14 +58,15 @@ fi
  
 # Compile the word lexicon (L.fst)
 if [ $stage -le -1 ]; then
-  #rm -r $lm_dir
-
-  #rm -r $dict
-  #rm -r $lang
-  #local/prepare_dict.sh $lexicon_raw $dict_tmp
-  #perl -ape 's/(\S+\s+)\S+\s+(.+)/$1$2/;' < $dict_tmp/lexiconp.txt > $dict_tmp/lexicon.txt || exit 1;
-  #utils/prepare_lang.sh --position-dependent-phones false \
-  #  --phone-symbol-table $phones_src $dict_tmp "<SIL>" $lang_tmp $dict
+  rm -r $lm_dir
+  rm -r $dict
+  rm -r $lang
+  cp -r data/local/dict $dict_tmp
+  cp $lexicon_raw $dict_tmp/lexicon.txt
+  echo "<SIL> SIL"	>> $dict_tmp/lexicon.txt
+  perl -ape 's/(\S+\s+)(.+)/${1}1.0\t$2/;' < $dict_tmp/lexicon.txt > $dict_tmp/lexiconp.txt || exit 1;
+  utils/prepare_lang.sh --position-dependent-phones false \
+    --phone-symbol-table $phones_src $dict_tmp "<SIL>" $lang_tmp $dict
    
   # Compile the grammar/language model (G.fst)
   #local/train_lms.sh --text data/local/train/firstpass_taibun_train_text --lexicon $dict_tmp/lexicon.txt $lm_dir
@@ -105,8 +113,4 @@ if [ $stage -le 3 ]; then
     --nj $num_jobs --cmd "$decode_cmd" $ivector_opts \
     --frames-per-chunk 150 $skip_scoring_opts \
     $graph data/${test_set}_hires $dir/decode_${test_set}${dec_dir_suffix} || exit 1;
-fi
-
-if [ $stage -le 4 ] && $gen_syl ; then
-  bash get_1best_phn_lmwt_wip.sh data/${test_set} $dir/decode_${test_set}${dec_dir_suffix} $dir/final.mdl
 fi

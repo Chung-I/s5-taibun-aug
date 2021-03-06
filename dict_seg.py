@@ -77,6 +77,7 @@ if __name__ == '__main__':
     parser.add_argument('src_path')
     parser.add_argument('dest_path')
     parser.add_argument('--oov-path')
+    parser.add_argument('--lower', action='store_true')
     parser.add_argument('--with-prob', action='store_true')
     parser.add_argument('--ckip-path')# default='/home/nlpmaster/ssd-1t/weights/data')
     parser.add_argument('--batch-size', type=int, default=64)
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     if args.ckip_path:
         from tsm.ckip_wrapper import CKIPWordSegWrapper
         cutter = CKIPWordSegWrapper(args.ckip_path, dict_lexicon, not args.recommend_dictionary)
-        preprocess = lambda line: Sentence.parse_mixed_text(line, remove_punct=True)
+        preprocess = lambda line: Sentence.parse_mixed_text(line.lower() if args.lower else line, remove_punct=True)
         dest_sents = batched_inferencer(cutter.cut_some, list(map(preprocess, lines)), args.batch_size)
     else:
         cut = cut_line_factory(dict_lexicon)

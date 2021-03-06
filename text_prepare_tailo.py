@@ -8,6 +8,7 @@ import zhon.hanzi
 
 parser = argparse.ArgumentParser()
 parser.add_argument('text_dir')
+parser.add_argument('--field', default='漢羅台文')
 parser.add_argument('--corpus-prefix')
 parser.add_argument('--test-set', action='store_true')
 args = parser.parse_args()
@@ -25,7 +26,7 @@ for jsonfile in Path(args.text_dir).rglob("*.json"):
     utt_id=f"{corpus_prefix}{utt_id}"
     with open(jsonfile, 'r', encoding='utf-8') as f:
         output = json.load(f)
-        sent = output['漢羅台文']
+        sent = output[args.field]
         #sent = re.sub("\-", "", sent)
         #sent = re.split(f"([{zhon.hanzi.characters}\-])", sent)
         words = Sentence.parse_mixed_text(sent, remove_punct=True)

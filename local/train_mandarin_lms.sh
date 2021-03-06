@@ -32,7 +32,7 @@ fi
 cleantext=$dir/text.no_oov
 
 cat $text | awk -v lex=$lexicon 'BEGIN{while((getline<lex) >0){ seen[$1]=1; } }
-  {for(n=1; n<=NF;n++) {  if (seen[$n]) { printf("%s ", $n); } else {printf("<SIL> ");} } printf("\n");}' \
+  {for(n=1; n<=NF;n++) {  if (seen[$n]) { printf("%s ", $n); } else {printf("sil ");} } printf("\n");}' \
   > $cleantext || exit 1;
 
 cat $cleantext | awk '{for(n=2;n<=NF;n++) print $n; }' | sort | uniq -c | \
@@ -46,7 +46,7 @@ cat $cleantext | awk '{for(n=2;n<=NF;n++) print $n; }' | \
    sort | uniq -c | sort -nr > $dir/unigram.counts || exit 1;
 
 # note: we probably won't really make use of <SIL> as there aren't any OOVs
-cat $dir/unigram.counts  | awk '{print $2}' | get_word_map.pl "<s>" "</s>" "<SIL>" > $dir/word_map \
+cat $dir/unigram.counts  | awk '{print $2}' | get_word_map.pl "<s>" "</s>" "sil" > $dir/word_map \
    || exit 1;
 
 # note: ignore 1st field of train.txt, it's the utterance-id.

@@ -4,15 +4,17 @@
 # Copyright 2018  Yuan-Fu Liao, National Taipei University of Technology
 # Apache 2.0
 
-source_dir=language
-dict_dir=data/local/dict
+. ./utils/parse_options.sh || exit 1;
+
+lexiconp=$1
+dict_dir=$2
 rm -rf $dict_dir
 mkdir -p $dict_dir
 
 #
 #
 #
-cat $source_dir/lexiconp.txt > $dict_dir/lexiconp.txt
+cat $lexiconp > $dict_dir/lexiconp.txt
 echo "<SIL> 1.0 SIL"	>> $dict_dir/lexiconp.txt
 
 for phn_file in silence_phones.txt nonsilence_phones.txt optional_silence.txt extra_questions.txt ;

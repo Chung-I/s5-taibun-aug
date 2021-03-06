@@ -10,6 +10,8 @@ set -e -o pipefail
 
 raw_data_dir=raw_pilot
 data_dir=data/pilot
+field="漢羅台文"
+lexicon_file=language/lexicon_taibun.txt
 
 . ./path.sh
 . parse_options.sh
@@ -31,14 +33,14 @@ mkdir -p $data_dir
 
 # make utt2spk, wav.scp and text
 echo "prepare text"
-python3 text_prepare_tailo.py $raw_data_dir/json --test-set --corpus-prefix pilot
+python3 text_prepare_tailo.py $raw_data_dir/json --test-set --corpus-prefix pilot --field $field
 mv text $data_dir/text
 
-#mkdir -p tmp
-#cat $data_dir/text | awk '{print $1}' > tmp/utt
-#cat $data_dir/text | awk '$1=""; {print $0}' | sed 's/^\s\+//' > tmp/only_text
-#python3 dict_seg.py language/lexicon_taibun.txt tmp/only_text tmp/only_seg_text --with-prob --form sent
-#paste -d " " tmp/utt tmp/only_seg_text | grep -Ev 'unsegmentable' > $data_dir/text
+mkdir -p tmp
+cat $data_dir/text | awk '{print $1}' > tmp/utt
+cat $data_dir/text | awk '$1=""; {print $0}' | sed 's/^\s\+//' > tmp/only_text
+python3 dict_seg.py $lexicon_file tmp/only_text tmp/only_seg_text --with-prob --form sent --ckip-path /home/nlpmaster/ssd-1t/weights/data 
+paste -d " " tmp/utt tmp/only_seg_text | grep -Ev 'unsegmentable' > $data_dir/text
 
 echo "prepare utt2spk"
 find -L $raw_data_dir/wav -name '*.wav' -exec sh -c 'x={}; y=$(basename -s .wav $x); printf "pilot-%s pilot-%s\n" $y $y' \; | sed 's/\xe3\x80\x80\|\xc2\xa0//g' | dos2unix > $data_dir/utt2spk

@@ -8,6 +8,7 @@ import unicodedata
 
 from tsm.symbols import 臺灣閩南語羅馬字拼音聲母表
 from tsm.symbols import 臺灣閩南語羅馬字拼音韻母表
+from tsm.symbols import 音值對照臺灣閩南語羅馬字拼音表
 from tsm.symbols import iNULL, TONES, is_phn, all_syls
 from tsm.POJ_TL import poj_tl
 
@@ -83,14 +84,47 @@ def generate_finals(final_path, phoneme_with_tone):
         for final, tone in finals:
             fp.write(f"{final}{tone}\n")
 
-def apply_tone_sandhi(hanji, lomaji):
+def 判斷變調(句物件):
+    from 臺灣言語工具.語音合成.閩南語音韻.變調判斷 import 變調判斷
+    from 臺灣言語工具.音標系統.閩南語.臺灣閩南語羅馬字拼音 import 臺灣閩南語羅馬字拼音
+    結果句物件 = 句物件.轉音(臺灣閩南語羅馬字拼音, 函式='音值')
+    判斷陣列 = 變調判斷.判斷(結果句物件)
+    return 結果句物件, 判斷陣列
+
+def 執行變調(結果句物件, 句物件, 判斷陣列):
+    from 臺灣言語工具.語音合成.閩南語音韻.變調判斷 import 變調判斷
+    這馬所在 = 0
+    for 詞物件, 原底詞 in zip(結果句物件.網出詞物件(), 句物件.網出詞物件()):
+        新陣列 = []
+        for 字物件, 原底字 in zip(詞物件.內底字, 原底詞.內底字):
+            變調方式 = 判斷陣列[這馬所在]
+            if 變調方式 == 變調判斷.愛提掉的:
+                pass
+            else:
+                if 字物件.音 == (None,):
+                    新陣列.append(原底字.khóopih字())
+                else:
+                    變調音 = 變調方式.變調(字物件.音)
+                    音 = [音值對照臺灣閩南語羅馬字拼音表[_變調音] for _變調音 in 變調音]
+                    字物件.音 = "".join(音)
+                    新陣列.append(字物件)
+            這馬所在 += 1
+        詞物件.內底字 = 新陣列
+    return 結果句物件
+
+def apply_tone_sandhi(hanji, lomaji, is_boundary=True, get_prefix=False):
 
     from 臺灣言語工具.解析整理.拆文分析器 import 拆文分析器
-    from 臺灣言語工具.語音合成 import 台灣話口語講法
-
-    text = 台灣話口語講法(
-        拆文分析器.建立句物件(hanji, lomaji)
-    )
+    from 臺灣言語工具.解析整理.解析錯誤 import 解析錯誤 
+    from 臺灣言語工具.語音合成.閩南語音韻.變調 import 規則變調
+    try:
+        句物件 = 拆文分析器.建立句物件(hanji, lomaji) 
+        結果句物件, 判斷陣列 = 判斷變調(句物件)
+        if not is_boundary:
+            判斷陣列[-1] = 規則變調 
+        text = 執行變調(結果句物件, 句物件, 判斷陣列)
+    except 解析錯誤:
+        text = lomaji
 
     return text
 
@@ -236,7 +270,7 @@ def group(objs, key):
     return dictionary
 
 def get_all_possible_translations(possible_cuts, lexicon):
-    return flatten([product(*[[entry.phonemes for entry in lexicon[word]] for word in cut]) for cut in possible_cuts])
+    return flatten([product(*[[entry.phonemes if entry is not None else [(lambda: word)] for entry in lexicon.get(word)] for word in cut]) for cut in possible_cuts])
 
 def match_replace(sent, match, repl):
     start, end = match.span()
