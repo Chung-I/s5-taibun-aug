@@ -45,7 +45,7 @@ mkdir -p tmp
 python3 local/make_pts_text.py $train_dir/$txtdir $data_dir $make_pts_text_opts
 cat $data_dir/text | awk '{print $1}' > tmp/utt
 cat $data_dir/text | awk '$1=""; {print $0}' | sed 's/^\s\+//' > tmp/only_text
-python3 dict_seg.py $lexicon_path tmp/only_text tmp/only_seg_text --with-prob --form sent --ckip-path /home/nlpmaster/ssd-1t/weights/data --lower --non-hanzi-in-lexicon
+python3 dict_seg.py $lexicon_path tmp/only_text tmp/only_seg_text
 paste -d " " tmp/utt tmp/only_seg_text | grep -Ev 'unsegmentable' > $data_dir/text
 rm -r tmp
 

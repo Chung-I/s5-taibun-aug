@@ -9,9 +9,9 @@
 stage=-2
 num_jobs=10
 
-train_dir=TSM/trains
-eval_dir=TSM/valids
-testsets="test test_pts_merged pilot"
+testsets="test test_pts"
+tat_dir=TAT-Vol1-train-lavalier
+pts_dir=PTS_TW-train
 
 # shell options
 set -eo pipefail
@@ -25,21 +25,18 @@ if [ $stage -le -2 ]; then
 
   # Lexicon Preparation,
   echo "$0: Lexicon Preparation"
-   local/prepare_dict.sh || exit 1;
+   local/prepare_dict.sh language/lexiconp.txt data/local/dict || exit 1;
 
   ## Data Preparation
   echo "$0: Data Preparation"
   rm -rf   data/pts data/tat data/tat_all1 data/test_pts data/train data/test data/eval data/local/train
   mkdir -p data/local/train
-  local/prepare_data.sh --train-dir condenser --data-dir data/tat_all || exit 1;
-  local/prepare_pts_data.sh --train-dir PTS_TW-train --data-dir data/pts_all || exit 1;
-  local/prepare_pilot_data.sh --raw-data-dir raw_pilot --data-dir data/pilot || exit 1;
+  local/prepare_data.sh --train-dir $tat_dir --data-dir data/tat_all || exit 1;
+  local/prepare_pts_data.sh --train-dir $pts_dir --data-dir data/pts_all || exit 1;
   grep -E "G20194590170" data/pts_all/utt2spk | awk '{print $2}' > data/pts_all/cv.spk
-  grep -E "G20194590170" data/pts_all_merged/utt2spk | awk '{print $2}' > data/pts_all_merged/cv.spk
   grep -E "(IU_IUF0008|IU_IUM0012|KK_KKM0001|KH_KHF0008|IU_IUF0005|TS_TSF0017|IU_IUM0009|KK_KKM0006)" data/tat_all/utt2spk | awk '{print $2}' > data/tat_all/cv1.spk
   grep -E "(TA_TAM0001|IU_IUF0013|KH_KHF0003|IU_IUM0014|TH_THF0021|TH_THM0011|TH_THF0005|KK_KKF0013)" data/tat_all/utt2spk | awk '{print $2}' > data/tat_all/cv2.spk
   utils/subset_data_dir_tr_cv.sh --cv-spk-list data/pts_all/cv.spk data/pts_all data/pts data/test_pts
-  utils/subset_data_dir_tr_cv.sh --cv-spk-list data/pts_all_merged/cv.spk data/pts_all_merged data/pts_merged data/test_pts_merged
   utils/subset_data_dir_tr_cv.sh --cv-spk-list data/tat_all/cv1.spk data/tat_all data/tat_all1 data/eval
   utils/subset_data_dir_tr_cv.sh --cv-spk-list data/tat_all/cv2.spk data/tat_all1 data/tat data/test
   cat data/pts/text data/tat/text | awk '{$1=""}1;' | awk '{$1=$1}1;' > data/local/train/text
@@ -70,8 +67,7 @@ mfccdir=mfcc
 # mfcc
 if [ $stage -le -1 ]; then
   echo "$0: making mfccs"
-  #for x in tat pts test eval test_pts pts_merged test_pts_merged; do
-  for x in test_pts_merged; do
+  for x in tat pts test eval test_pts ; do
     steps/make_mfcc_pitch.sh --cmd "$train_cmd" --nj $num_jobs data/$x exp/make_mfcc/$x $mfccdir || exit 1;
     steps/compute_cmvn_stats.sh data/$x exp/make_mfcc/$x $mfccdir || exit 1;
     utils/fix_data_dir.sh data/$x || exit 1;
@@ -95,8 +91,8 @@ if [ $stage -le 0 ]; then
     data/tat data/lang exp/mono exp/mono_ali || exit 1;
 
   # Monophone decoding
-  #(
-  #utils/mkgraph.sh data/lang_test exp/mono exp/mono/graph || exit 1;
+  (
+  utils/mkgraph.sh data/lang_test exp/mono exp/mono/graph || exit 1;
   for testset in $testsets ; do
     numspk=$(wc -l <data/${testset}/spk2utt)
     nj=$([[ $numspk -le $num_jobs ]] && echo "$numspk" || echo "$num_jobs")
@@ -105,7 +101,7 @@ if [ $stage -le 0 ]; then
     steps/decode.sh --cmd "$decode_cmd" --config conf/decode.config --nj $nj \
       exp/mono/graph data/$testset exp/mono/decode_${testset}
   done
-  #)&
+  )&
 fi
 
 # tri1
@@ -121,7 +117,7 @@ if [ $stage -le 1 ]; then
     data/train data/lang exp/tri1 exp/tri1_ali || exit 1;
 
   # decode tri1
-  #(
+  (
   utils/mkgraph.sh data/lang_test exp/tri1 exp/tri1/graph || exit 1;
   for testset in $testsets ; do
     numspk=$(wc -l <data/${testset}/spk2utt)
@@ -129,7 +125,7 @@ if [ $stage -le 1 ]; then
     steps/decode.sh --cmd "$decode_cmd" --config conf/decode.config --nj $nj \
       exp/tri1/graph data/$testset exp/tri1/decode_${testset}
   done
-  #)&
+  )&
 fi
 
 # tri2
@@ -196,8 +192,6 @@ if [ $stage -le 4 ]; then
   #utils/fix_data_dir.sh data/pts_reseg || exit 1;
   #steps/cleanup/clean_and_segment_data.sh --nj 10 data/pts_reseg data/lang \
   #  exp/pts_merged_tri4a exp/pts_merged_tri4a_cleanup data/pts_reseg_cleaned || exit 1;
-  cp -r data/train data/old_train
-  utils/data/combine_data.sh data/train data/pts_reseg data/tat || exit 1 ;
 
   # align tri4a
   steps/align_fmllr.sh  --cmd "$train_cmd" --nj $num_jobs \
@@ -249,17 +243,17 @@ fi
 if [ $stage -le 7 ]; then
   # The iVector-extraction and feature-dumping parts coulb be skipped by setting "--train_stage 7"
   echo "$0: train chain model"
-  local/chain/run_tdnn_aug.sh --test-sets "$testsets" --stage 13 --num-cpu-jobs $num_jobs
+  local/chain/run_tdnn.sh --test-sets "$testsets"
 fi
 
 # getting results (see RESULTS file)
 if [ $stage -le 8 ]; then
   echo "$0: extract the results"
-  for test_set in pilot pilot_mandarin ; do
-  #echo "WER: $test_set"
-  #for x in exp/*/decode_${test_set}; do [ -d $x ] && grep WER $x/wer_* | utils/best_wer.sh; done 2>/dev/null
-  #for x in exp/*/*/decode_${test_set}; do [ -d $x ] && grep WER $x/wer_* | utils/best_wer.sh; done 2>/dev/null
-  #echo
+  for test_set in $testsets ; do
+  echo "WER: $test_set"
+  for x in exp/*/decode_${test_set}; do [ -d $x ] && grep WER $x/wer_* | utils/best_wer.sh; done 2>/dev/null
+  for x in exp/*/*/decode_${test_set}; do [ -d $x ] && grep WER $x/wer_* | utils/best_wer.sh; done 2>/dev/null
+  echo
 
   echo "CER: $test_set"
   for x in exp/*/decode_${test_set}; do [ -d $x ] && grep WER $x/cer_* | utils/best_wer.sh; done 2>/dev/null
@@ -268,23 +262,23 @@ if [ $stage -le 8 ]; then
   done
 fi
 
-if [ $stage -le 9 ]; then
-  dict_tmp=data/local/dict_mandarin
-  lang_tmp=data/local/lang_mandarin
-  lang_dir=data/lang_mandarin
-  src_mdl_dir=exp/chain/tdnn_1d_aug_sp
-  #cp -r data/local/dict  $dict_tmp
-  #cp language/mandarin_lexiconp.txt $dict_tmp/lexiconp.txt
-  #echo "<SIL> 1.0 SIL"	>> $dict_tmp/lexiconp.txt
-  #perl -ape 's/(\S+\s+)\S+\s+(.+)/$1$2/;' < $dict_tmp/lexiconp.txt > $dict_tmp/lexicon.txt || exit 1;
-
-  #utils/prepare_lang.sh --position-dependent-phones false \
-  #  --phone-symbol-table $src_mdl_dir/phones.txt $dict_tmp "<SIL>" $lang_tmp $lang_dir || exit 1;
-
-  bash local/run_learn_lex_bayesian.sh --ref-dict $dict_tmp --dir exp/chain/tdnn_1d_aug_sp_lex_work \
-    --data data/great_times_hires --src-mdl-dir exp/chain/tdnn_1d_aug_sp --ref-lang $lang_dir \
-    --oov-symbol "<SIL>" --g2p-lexicon-path language/mandarin_oov_g2p_lexiconp.txt --stage 1 --lexlearn-stage 5 || exit 1
-fi
+#if [ $stage -le 9 ]; then
+#  dict_tmp=data/local/dict_mandarin
+#  lang_tmp=data/local/lang_mandarin
+#  lang_dir=data/lang_mandarin
+#  src_mdl_dir=exp/chain/tdnn_1d_aug_sp
+#  #cp -r data/local/dict  $dict_tmp
+#  #cp language/mandarin_lexiconp.txt $dict_tmp/lexiconp.txt
+#  #echo "<SIL> 1.0 SIL"	>> $dict_tmp/lexiconp.txt
+#  #perl -ape 's/(\S+\s+)\S+\s+(.+)/$1$2/;' < $dict_tmp/lexiconp.txt > $dict_tmp/lexicon.txt || exit 1;
+#
+#  #utils/prepare_lang.sh --position-dependent-phones false \
+#  #  --phone-symbol-table $src_mdl_dir/phones.txt $dict_tmp "<SIL>" $lang_tmp $lang_dir || exit 1;
+#
+#  bash local/run_learn_lex_bayesian.sh --ref-dict $dict_tmp --dir exp/chain/tdnn_1d_aug_sp_lex_work \
+#    --data data/great_times_hires --src-mdl-dir exp/chain/tdnn_1d_aug_sp --ref-lang $lang_dir \
+#    --oov-symbol "<SIL>" --g2p-lexicon-path language/mandarin_oov_g2p_lexiconp.txt --stage 1 --lexlearn-stage 5 || exit 1
+#fi
 
 #if [ $stage -le 10 ]; then
 #  #utils/combine_data.sh data/train_aug_sp_gt_hires "data/train_aug_sp_hires data/great_times_hires"
