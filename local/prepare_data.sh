@@ -8,8 +8,9 @@
 
 set -e -o pipefail
 
-train_dir=condenser/wav
-data_dir=data/tat
+train_dir=TAT-Vol1-train-lavalier
+data_dir=data/tat_all
+lexicon_path=language/lexiconp.txt
 
 . ./path.sh
 . parse_options.sh
@@ -32,8 +33,7 @@ mkdir -p $data_dir
 
 # make utt2spk, wav.scp and text
 echo "prepare text"
-python3 text_prepare_tailo.py condenser/json
-mv text $data_dir/text
+python3 text_prepare_tailo.py $train_dir/json $data_dir/text
 
 mkdir -p tmp
 cat $data_dir/text | awk '{print $1}' > tmp/utt
@@ -43,9 +43,9 @@ paste -d " " tmp/utt tmp/only_seg_text | grep -Ev 'unsegmentable' > $data_dir/te
 rm -rf tmp
 
 echo "prepare utt2spk"
-find -L $train_dir -name *.wav -exec sh -c 'x={}; y=$(basename -s .wav $x); z=$(echo "$x" |cut -d / -f 3); printf "%s_%s %s\n" $z $y $z' \; | sed 's/\xe3\x80\x80\|\xc2\xa0//g' | dos2unix > $data_dir/utt2spk
+find -L $train_dir/wav -name *.wav -exec sh -c 'x={}; y=$(basename -s .wav $x); z=$(echo "$x" |cut -d / -f 3); printf "%s_%s %s\n" $z $y $z' \; | sed 's/\xe3\x80\x80\|\xc2\xa0//g' | dos2unix > $data_dir/utt2spk
 echo "prepare wav.scp"
-find -L $train_dir -name *.wav -exec sh -c 'x={}; y=$(basename -s .wav $x); z=$(echo "$x" |cut -d / -f 3); printf "%s_%s %s\n" $z $y $x' \; | sed 's/\xe3\x80\x80\|\xc2\xa0//g' | dos2unix > $data_dir/wav.scp
+find -L $train_dir/wav -name *.wav -exec sh -c 'x={}; y=$(basename -s .wav $x); z=$(echo "$x" |cut -d / -f 3); printf "%s_%s %s\n" $z $y $x' \; | sed 's/\xe3\x80\x80\|\xc2\xa0//g' | dos2unix > $data_dir/wav.scp
 
 # fix_data_dir.sh fixes common mistakes (unsorted entries in wav.scp,
 # duplicate entries and so on). Also, it regenerates the spk2utt from

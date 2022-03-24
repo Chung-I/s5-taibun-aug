@@ -9,7 +9,7 @@
 set -e -o pipefail
 
 train_dir=PTS_TW-train
-data_dir=data/pts
+data_dir=data/pts_all
 add_parent_prefix=false
 lexicon_path=language/lexiconp.txt
 txtdir=text
