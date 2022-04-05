@@ -17,6 +17,7 @@ put ```RIRS_NOISES``` in the root (```s5-taibun-aug/```). See ```local/nnet3/run
     ln -s /groups/public/PTS_TW-train .
     ```
     b. (For other users) To prepare PTS_TW-extra data, run:
+
         i. mandarin:
         ```
         local/prepare_pts_data.sh --train-dir PTS_TW-extra --data-dir data/<dataset_name> --add-parent-prefix true \
@@ -46,7 +47,6 @@ put ```RIRS_NOISES``` in the root (```s5-taibun-aug/```). See ```local/nnet3/run
 
 ## Requirements
 python package requirements:
-
     - ckiptagger
     - regex
     - zhon
