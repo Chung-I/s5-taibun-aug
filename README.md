@@ -47,9 +47,10 @@ put ```RIRS_NOISES``` in the root (```s5-taibun-aug/```). See ```local/nnet3/run
 
 ## Requirements
 python package requirements:
-    - ckiptagger
-    - regex
-    - zhon
-    - cn2an
-    - opencc
+
+    * ckiptagger
+    * regex
+    * zhon
+    * cn2an
+    * opencc
 
