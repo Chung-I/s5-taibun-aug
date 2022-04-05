@@ -51,7 +51,7 @@ if [ $stage -le -2 ]; then
   # LM training
   echo "$0: LM training"
   rm -rf data/local/lm/3gram-mincount
-  local/train_lms.sh || exit 1;
+  local/train_lms.sh data/local/lm || exit 1;
 
   # G compilation, check LG composition
   echo "$0: G compilation, check LG composition"
@@ -72,7 +72,6 @@ if [ $stage -le -1 ]; then
     steps/compute_cmvn_stats.sh data/$x exp/make_mfcc/$x $mfccdir || exit 1;
     utils/fix_data_dir.sh data/$x || exit 1;
   done
-  exit 0;
 fi
 
 # mono
