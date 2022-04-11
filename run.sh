@@ -9,13 +9,14 @@
 stage=-2
 num_jobs=10
 
-testsets="test test_pts"
+testsets="test test_pts test_pts_merged"
 tat_dir=TAT-Vol1-train-lavalier
 pts_dir=PTS_TW-train
 
 # shell options
 set -eo pipefail
 
+. ./path.sh
 . ./cmd.sh
 . ./utils/parse_options.sh
 
@@ -29,14 +30,18 @@ if [ $stage -le -2 ]; then
 
   ## Data Preparation
   echo "$0: Data Preparation"
-  rm -rf   data/pts data/tat data/tat_all1 data/test_pts data/train data/test data/eval data/local/train
+  rm -rf   data/pts data/tat data/tat_all1 data/test_pts data/train data/test data/eval data/pts_merged data/test_pts_merged data/local/train
   mkdir -p data/local/train
   local/prepare_data.sh --train-dir $tat_dir --data-dir data/tat_all || exit 1;
   local/prepare_pts_data.sh --train-dir $pts_dir --data-dir data/pts_all || exit 1;
+  python3 local/combine_consecutive_segments.py data/pts_all data/pts_all_merged || exit 1;
+  utils/fix_data_dir.sh data/pts_all_merged || exit 1;
   grep -E "G20194590170" data/pts_all/utt2spk | awk '{print $2}' > data/pts_all/cv.spk
+  grep -E "G20194590170" data/pts_all_merged/utt2spk | awk '{print $2}' > data/pts_all_merged/cv.spk
   grep -E "(IU_IUF0008|IU_IUM0012|KK_KKM0001|KH_KHF0008|IU_IUF0005|TS_TSF0017|IU_IUM0009|KK_KKM0006)" data/tat_all/utt2spk | awk '{print $2}' > data/tat_all/cv1.spk
   grep -E "(TA_TAM0001|IU_IUF0013|KH_KHF0003|IU_IUM0014|TH_THF0021|TH_THM0011|TH_THF0005|KK_KKF0013)" data/tat_all/utt2spk | awk '{print $2}' > data/tat_all/cv2.spk
   utils/subset_data_dir_tr_cv.sh --cv-spk-list data/pts_all/cv.spk data/pts_all data/pts data/test_pts
+  utils/subset_data_dir_tr_cv.sh --cv-spk-list data/pts_all_merged/cv.spk data/pts_all_merged data/pts_merged data/test_pts_merged
   utils/subset_data_dir_tr_cv.sh --cv-spk-list data/tat_all/cv1.spk data/tat_all data/tat_all1 data/eval
   utils/subset_data_dir_tr_cv.sh --cv-spk-list data/tat_all/cv2.spk data/tat_all1 data/tat data/test
   cat data/pts/text data/tat/text | awk '{$1=""}1;' | awk '{$1=$1}1;' > data/local/train/text
@@ -67,7 +72,7 @@ mfccdir=mfcc
 # mfcc
 if [ $stage -le -1 ]; then
   echo "$0: making mfccs"
-  for x in tat pts test eval test_pts ; do
+  for x in tat pts test eval test_pts pts_merged test_pts_merged ; do
     steps/make_mfcc_pitch.sh --cmd "$train_cmd" --nj $num_jobs data/$x exp/make_mfcc/$x $mfccdir || exit 1;
     steps/compute_cmvn_stats.sh data/$x exp/make_mfcc/$x $mfccdir || exit 1;
     utils/fix_data_dir.sh data/$x || exit 1;
@@ -184,13 +189,16 @@ if [ $stage -le 4 ]; then
   steps/train_sat.sh --cmd "$train_cmd" \
     5000 40000 data/train data/lang exp/tri3a_ali exp/tri4a || exit 1;
 
-  #steps/cleanup/segment_long_utterances.sh --nj 10 exp/tri4a data/lang \
-  #  data/pts_merged data/pts_reseg exp/pts_merged_tri4a || exit 1;
-  #steps/compute_cmvn_stats.sh \
-  #  data/pts_reseg exp/make_mfcc/pts_reseg mfcc || exit 1;
-  #utils/fix_data_dir.sh data/pts_reseg || exit 1;
-  #steps/cleanup/clean_and_segment_data.sh --nj 10 data/pts_reseg data/lang \
-  #  exp/pts_merged_tri4a exp/pts_merged_tri4a_cleanup data/pts_reseg_cleaned || exit 1;
+  steps/cleanup/segment_long_utterances.sh --nj $num_jobs exp/tri4a data/lang \
+    data/pts_merged data/pts_reseg exp/pts_merged_tri4a || exit 1;
+  steps/compute_cmvn_stats.sh \
+    data/pts_reseg exp/make_mfcc/pts_reseg mfcc || exit 1;
+  utils/fix_data_dir.sh data/pts_reseg || exit 1;
+  steps/cleanup/clean_and_segment_data.sh --nj $num_jobs data/pts_reseg data/lang \
+    exp/pts_merged_tri4a exp/pts_merged_tri4a_cleanup data/pts_reseg_cleaned || exit 1;
+  mv data/train data/old_train || exit 1;
+  utils/data/combine_data.sh data/train data/pts_reseg_cleaned data/tat || exit 1 ;
+
 
   # align tri4a
   steps/align_fmllr.sh  --cmd "$train_cmd" --nj $num_jobs \
